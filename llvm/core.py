@@ -211,15 +211,17 @@ class CCEnum(Enum):
     CC_X86_THISCALL  = ID.X86_ThisCall
     CC_PTX_KERNEL    = ID.PTX_Kernel
     CC_PTX_DEVICE    = ID.PTX_Device
-    CC_MBLAZE_INTR   = ID.MBLAZE_INTR
-    CC_MBLAZE_SVOL   = ID.MBLAZE_SVOL
+
+    if llvm.version <= (3, 3):
+        CC_MBLAZE_INTR   = ID.MBLAZE_INTR
+        CC_MBLAZE_SVOL   = ID.MBLAZE_SVOL
 
 CCEnum.declare()
 
 # int predicates
 class ICMPEnum(Enum):
     prefix = 'ICMP_'
-    
+
     Predicate = api.llvm.CmpInst.Predicate
 
     ICMP_EQ         = Predicate.ICMP_EQ
@@ -951,7 +953,7 @@ class StructType(Type):
     def _get_name(self):
         if self._ptr.isLiteral():
            return ""
-        else:	
+        else:
            return self._ptr.getName()
 
     name = property(_get_name, _set_name)
@@ -1036,6 +1038,9 @@ class Value(llvm.Wrapper):
 
     def __str__(self):
         return str(self._ptr)
+
+    def __hash__(self):
+        return hash(self._ptr)
 
     def __eq__(self, rhs):
         if isinstance(rhs, Value):
@@ -1449,7 +1454,7 @@ class Argument(Value):
             attrbldr.addAttribute(attr)
             attrs = api.llvm.AttributeSet.get(context, 0, attrbldr)
             self._ptr.addAttr(attrs)
-        
+
             if attr not in self:
                 raise ValueError("Attribute %r is not valid for arg %s" %
                                  (attr, self))
@@ -1647,7 +1652,10 @@ class Function(GlobalValue):
         context = api.llvm.getGlobalContext()
         attrbldr = api.llvm.AttrBuilder.new()
         attrbldr.addAttribute(attr)
-        attrs = api.llvm.Attributes.get(context, attrbldr)
+        if llvm.version >= (3, 3):
+            attrs = api.llvm.Attribute.get(context, attrbldr)
+        else:
+            attrs = api.llvm.Attributes.get(context, attrbldr)
         self._ptr.removeFnAttr(attrs)
 
     def viewCFGOnly(self):
@@ -1848,6 +1856,9 @@ class Instruction(User):
     def erase_from_parent(self):
         return self._ptr.eraseFromParent()
 
+    def replace_all_uses_with(self, inst):
+        self._ptr.replaceAllUsesWith(inst)
+
 
 class CallOrInvokeInstruction(Instruction):
     _type_ = api.llvm.CallInst, api.llvm.InvokeInst
@@ -1864,21 +1875,33 @@ class CallOrInvokeInstruction(Instruction):
         context = api.llvm.getGlobalContext()
         attrbldr = api.llvm.AttrBuilder.new()
         attrbldr.addAttribute(attr)
-        attrs = api.llvm.Attributes.get(context, attrbldr)
+        if llvm.version >= (3, 3):
+            attrs = api.llvm.Attribute.get(context, attrbldr)
+        else:
+            attrs = api.llvm.Attributes.get(context, attrbldr)
+
         self._ptr.addAttribute(idx, attrs)
 
     def remove_parameter_attribute(self, idx, attr):
         context = api.llvm.getGlobalContext()
         attrbldr = api.llvm.AttrBuilder.new()
         attrbldr.addAttribute(attr)
-        attrs = api.llvm.Attributes.get(context, attrbldr)
+        if llvm.version >= (3, 3):
+            attrs = api.llvm.Attribute.get(context, attrbldr)
+        else:
+            attrs = api.llvm.Attributes.get(context, attrbldr)
+
         self._ptr.removeAttribute(idx, attrs)
 
     def set_parameter_alignment(self, idx, align):
         context = api.llvm.getGlobalContext()
         attrbldr = api.llvm.AttrBuilder.new()
         attrbldr.addAlignmentAttr(align)
-        attrs = api.llvm.Attributes.get(context, attrbldr)
+        if llvm.version >= (3, 3):
+            attrs = api.llvm.Attribute.get(context, attrbldr)
+        else:
+            attrs = api.llvm.Attributes.get(context, attrbldr)
+
         self._ptr.addAttribute(idx, attrs)
 
     def _get_called_function(self):
@@ -2124,29 +2147,34 @@ class Builder(llvm.Wrapper):
 
     # arithmethic, bitwise and logical
 
-    def add(self, lhs, rhs, name=""):
-        return _make_value(self._ptr.CreateAdd(lhs._ptr, rhs._ptr, name))
+    def add(self, lhs, rhs, name="", nuw=False, nsw=False):
+        return _make_value(self._ptr.CreateAdd(lhs._ptr, rhs._ptr, name,
+                                               nuw, nsw))
 
     def fadd(self, lhs, rhs, name=""):
         return _make_value(self._ptr.CreateFAdd(lhs._ptr, rhs._ptr, name))
 
-    def sub(self, lhs, rhs, name=""):
-        return _make_value(self._ptr.CreateSub(lhs._ptr, rhs._ptr, name))
+    def sub(self, lhs, rhs, name="", nuw=False, nsw=False):
+        return _make_value(self._ptr.CreateSub(lhs._ptr, rhs._ptr, name,
+                                               nuw, nsw))
 
     def fsub(self, lhs, rhs, name=""):
         return _make_value(self._ptr.CreateFSub(lhs._ptr, rhs._ptr, name))
 
-    def mul(self, lhs, rhs, name=""):
-        return _make_value(self._ptr.CreateMul(lhs._ptr, rhs._ptr, name))
+    def mul(self, lhs, rhs, name="", nuw=False, nsw=False):
+        return _make_value(self._ptr.CreateMul(lhs._ptr, rhs._ptr, name,
+                                               nuw, nsw))
 
     def fmul(self, lhs, rhs, name=""):
         return _make_value(self._ptr.CreateFMul(lhs._ptr, rhs._ptr, name))
 
-    def udiv(self, lhs, rhs, name=""):
-        return _make_value(self._ptr.CreateUDiv(lhs._ptr, rhs._ptr, name))
+    def udiv(self, lhs, rhs, name="", exact=False):
+        return _make_value(self._ptr.CreateUDiv(lhs._ptr, rhs._ptr, name,
+                                                exact))
 
-    def sdiv(self, lhs, rhs, name=""):
-        return _make_value(self._ptr.CreateSDiv(lhs._ptr, rhs._ptr, name))
+    def sdiv(self, lhs, rhs, name="", exact=False):
+        return _make_value(self._ptr.CreateSDiv(lhs._ptr, rhs._ptr, name,
+                                                exact))
 
     def fdiv(self, lhs, rhs, name=""):
         return _make_value(self._ptr.CreateFDiv(lhs._ptr, rhs._ptr, name))
@@ -2160,14 +2188,17 @@ class Builder(llvm.Wrapper):
     def frem(self, lhs, rhs, name=""):
         return _make_value(self._ptr.CreateFRem(lhs._ptr, rhs._ptr, name))
 
-    def shl(self, lhs, rhs, name=""):
-        return _make_value(self._ptr.CreateShl(lhs._ptr, rhs._ptr, name))
+    def shl(self, lhs, rhs, name="", nuw=False, nsw=False):
+        return _make_value(self._ptr.CreateShl(lhs._ptr, rhs._ptr, name,
+                                               nuw, nsw))
 
-    def lshr(self, lhs, rhs, name=""):
-        return _make_value(self._ptr.CreateLShr(lhs._ptr, rhs._ptr, name))
+    def lshr(self, lhs, rhs, name="", exact=False):
+        return _make_value(self._ptr.CreateLShr(lhs._ptr, rhs._ptr, name,
+                                                exact))
 
-    def ashr(self, lhs, rhs, name=""):
-        return _make_value(self._ptr.CreateAShr(lhs._ptr, rhs._ptr, name))
+    def ashr(self, lhs, rhs, name="", exact=False):
+        return _make_value(self._ptr.CreateAShr(lhs._ptr, rhs._ptr, name,
+                                                exact))
 
     def and_(self, lhs, rhs, name=""):
         return _make_value(self._ptr.CreateAnd(lhs._ptr, rhs._ptr, name))
@@ -2178,8 +2209,8 @@ class Builder(llvm.Wrapper):
     def xor(self, lhs, rhs, name=""):
         return _make_value(self._ptr.CreateXor(lhs._ptr, rhs._ptr, name))
 
-    def neg(self, val, name=""):
-        return _make_value(self._ptr.CreateNeg(val._ptr, name))
+    def neg(self, val, name="", nuw=False, nsw=False):
+        return _make_value(self._ptr.CreateNeg(val._ptr, name, nuw, nsw))
 
     def not_(self, val, name=""):
         return _make_value(self._ptr.CreateNot(val._ptr, name))

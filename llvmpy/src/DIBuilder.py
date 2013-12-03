@@ -6,7 +6,7 @@ DIBuilder = llvm.Class()
 from .Module import Module
 from .Value import Value, MDNode, Function, BasicBlock
 from .Instruction import Instruction
-from .DebugInfo import DIFile, DIEnumerator, DIType, DIBasicType, DIDerivedType
+from .DebugInfo import DIFile, DIEnumerator, DIType, DIBasicType, DIDerivedType, DICompositeType
 from .DebugInfo import DIDescriptor, DIArray, DISubrange, DIGlobalVariable
 from .DebugInfo import DIVariable, DISubprogram, DINameSpace, DILexicalBlockFile
 from .DebugInfo import DILexicalBlock
@@ -25,7 +25,8 @@ class DIBuilder:
     new = Constructor(ref(Module))
     delete = Destructor()
 
-    getCU = Method(const(ptr(MDNode)))
+    if LLVM_VERSION <= (3, 3):
+        getCU = Method(const(ptr(MDNode)))
     finalize = Method()
 
     createCompileUnit = Method(Void,
@@ -46,12 +47,16 @@ class DIBuilder:
 
     createEnumerator = Method(DIEnumerator,
                               stringref_arg,    # Name
-                              uint64_arg,       # Val
+                              uint64_arg if LLVM_VERSION <= (3, 3) else int64_arg, # Val
                               )
 
-    createNullPtrType = Method(DIType,
-                               stringref_arg,   # Name
-                               )
+    if LLVM_VERSION <= (3, 3):
+        createNullPtrType = Method(DIType,
+                                   stringref_arg,   # Name
+                                   )
+    else:
+        createNullPtrType = Method(DIBasicType)
+
 
     createBasicType = Method(DIType,
                              stringref_arg,     # Name
@@ -85,7 +90,7 @@ class DIBuilder:
                            ref(DIDescriptor), # Context
                            )
 
-    createFriend = Method(DIType,
+    createFriend = Method(DIType if LLVM_VERSION <= (3, 3) else DIDerivedType,
                           ref(DIType),   # Ty
                           ref(DIType), # FriendTy
                           )
@@ -169,7 +174,7 @@ class DIBuilder:
                              ref(DIArray),  # Subscripts
                              )
 
-    createVectorType = Method(DIType,
+    createVectorType = Method(DIType if LLVM_VERSION <= (3, 3) else DICompositeType,
                              uint64_arg,  # Size
                              uint64_arg,  # AlignInBits
                              ref(DIType),  # Ty
@@ -199,7 +204,7 @@ class DIBuilder:
     createObjectPointerType = Method(DIType,
                                 ref(DIType),      # Ty
                                 )
-    
+
     #createTemporaryType = Method(DIType, ref(DIFile)).require_only(0)
 
     createForwardDecl = Method(DIType,
@@ -245,7 +250,7 @@ class DIBuilder:
                                   bool_arg,          # isLocalToUnit
                                   ptr(Value),        # Val
                                   )
- 
+
     createLocalVariable = Method(DIVariable,
                                  unsigned_arg,      # Tag,
                                  ref(DIDescriptor), # Scope,
@@ -268,14 +273,14 @@ class DIBuilder:
                                    ref(SmallVector_Value),   # Addr,
                                    unsigned_arg,        # ArgNo=0,
                                    ).require_only(7)
- 
+
     createFunction = Method(DISubprogram,
                             ref(DIDescriptor),  # Scope
                             stringref_arg,      # Name
                             stringref_arg,      # LinkageName
                             ref(DIFile),        # File
                             unsigned_arg,       # LineNo
-                            ref(DIType),        # Ty
+                            ref(DIType if LLVM_VERSION <= (3, 3) else DICompositeType), # Ty
                             bool_arg,           # isLocalToUnit
                             bool_arg,           # isDefinition
                             unsigned_arg,       # ScopeLine
@@ -293,7 +298,7 @@ class DIBuilder:
                           stringref_arg,            # LinkageName
                           ref(DIFile),              # File
                           unsigned_arg,             # LineNo
-                          ref(DIType),              # Ty
+                          ref(DIType if LLVM_VERSION <= (3, 3) else DICompositeType), # Ty
                           bool_arg,                 # isLocalToUnit
                           bool_arg,                 # isDefinition
                           unsigned_arg,             # Virtuality=0
@@ -313,7 +318,7 @@ class DIBuilder:
                              unsigned_arg,          # LineNo
                              )
 
-    createLexicalBlockFile = Method(DILexicalBlockFile, 
+    createLexicalBlockFile = Method(DILexicalBlockFile,
                                     ref(DIDescriptor),  # Scope,
                                     ref(DIFile),        # File
                                     )
@@ -324,7 +329,7 @@ class DIBuilder:
                                 unsigned_arg,       # Line,
                                 unsigned_arg,       # Col
                                 )
- 
+
     _insertDeclare_1 = Method(ptr(Instruction),
                            ptr(Value),          # Storage,
                            ref(DIVariable),     # VarInfo

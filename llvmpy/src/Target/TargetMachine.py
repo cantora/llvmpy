@@ -8,6 +8,11 @@ from src.ADT.StringRef import StringRef
 from src.Support.CodeGen import CodeModel, TLSModel, CodeGenOpt, Reloc
 from src.GlobalValue import GlobalValue
 from src.DataLayout import DataLayout
+if LLVM_VERSION >= (3, 4):
+    from src.MC import MCAsmInfo, \
+                       TargetInstrInfo, \
+                       TargetSubtargetInfo, \
+                       TargetRegisterInfo
 
 if LLVM_VERSION < (3, 3):
     from src.TargetTransformInfo import (ScalarTargetTransformInfo,
@@ -48,6 +53,9 @@ class TargetMachine:
         getVectorTargetTransformInfo = Method(const(
                                           ownedptr(VectorTargetTransformInfo)))
 
+    else:
+        addAnalysisPasses = Method(Void, ref(PassManagerBase))
+
     addPassesToEmitFile = Method(cast(bool, Bool),
                                  ref(PassManagerBase),
                                  ref(formatted_raw_ostream),
@@ -55,4 +63,12 @@ class TargetMachine:
                                  cast(bool, Bool)
                                  ).require_only(3)
 
+    if LLVM_VERSION >= (3, 4):
+        getSubtargetImpl = Method(const(ownedptr(TargetSubtargetInfo)))
+
+        getMCAsmInfo = Method(const(ownedptr(MCAsmInfo)))
+
+        getInstrInfo = Method(const(ownedptr(TargetInstrInfo)))
+
+        getRegisterInfo = Method(const(ownedptr(TargetRegisterInfo)))
 
