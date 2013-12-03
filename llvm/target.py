@@ -186,10 +186,14 @@ class TargetMachine(llvm.Wrapper):
     @property
     def feature_string(self):
         return self._ptr.getTargetFeatureString()
-    
+
     @property
     def target(self):
         return self._ptr.getTarget()
+
+    if llvm.version >= (3, 3):
+        def add_analysis_passes(self, pm):
+            self._ptr.addAnalysisPasses(pm._ptr)
 
     if llvm.version >= (3, 4):
         @property
